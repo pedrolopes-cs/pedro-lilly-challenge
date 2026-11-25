@@ -31,6 +31,11 @@ const errorEl = document.getElementById("error");
  */
 async function fetchMedicines() {
     // TODO: fetch(`${BASE_URL}/medicines`), check response.ok, return the data.
+    const response = await fetch(`${BASE_URL}/medicines`);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} (${response.statusText})`);
+    }
+    return await response.json();
 }
 
 /**
@@ -43,6 +48,17 @@ function renderMedicines(data) {
     // TODO: build a table (the .results styles expect a <table>), iterate the
     // records, and render each row safely. Use the .invalid class to flag bad
     // values if you like.
+    resultsEl.innerHTML = ""; // Clear previous results
+    const table = document.createElement("table");
+    const headerRow = document.createElement("tr");
+    headerRow.innerHTML = "<th>Name</th><th>Price</th>"; // Add table headers 
+    table.appendChild(headerRow);
+    data.forEach((medicine) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${medicine.name || "Unknown"}</td><td>${medicine.price || "Unknown"}</td>`;
+        table.appendChild(row);
+    });
+    resultsEl.appendChild(table);
 }
 
 /**
@@ -52,13 +68,47 @@ function renderMedicines(data) {
  * render the data and clear #error. Show/hide the #loading area while working.
  */
 async function fetchUnreliable() {
-    // TODO: implement the retry loop here.
+    const maxRetries = 3;
+    const retryDelayMs = 500;
+    try {
+        const response = await fetch(`${BASE_URL}/medicines/unreliable`); 
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status} (${response.statusText})`);
+        }
+
+        const data = await response.json();
+        renderMedicines(data);
+        return data;
+    } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Request failed");
+        if (attempt < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs * (attempt + 1)));
+        }
+            }
+        }
+
+        errorEl.textContent = `Unable to load medicines after ${maxRetries + 1} attempts: ${lastError.message}`;
+    }
 }
 
 // ---- Button wiring (already works - no need to change) ----
 document.getElementById("load-medicines").addEventListener("click", async () => {
     // TODO: call fetchMedicines() then renderMedicines(data),
     // showing #loading and clearing #error appropriately.
+
+    try {
+        const medicines = await fetchMedicines(); //just use the function from before
+        renderMedicines(medicines);
+    } catch (error) {
+        const message = error instanceof Error
+            ? error.message
+            : "An unexpected error occurred.";
+
+        errorEl.textContent = `Error fetching medicines: ${message}`;
+        errorEl.hidden = false;
+    } finally {
+        loadingEl.hidden = true;
+    }
 });
 
 document.getElementById("load-unreliable").addEventListener("click", async () => {
